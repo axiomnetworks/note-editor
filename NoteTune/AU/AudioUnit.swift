@@ -83,18 +83,19 @@ final class NoteTuneAudioUnit: AUAudioUnit {
 
     // MARK: parameters
     private func makeParam(_ id: String, _ name: String, _ a: Addr, _ lo: Float, _ hi: Float,
-                           _ unit: AudioUnitParameterUnit, writable: Bool = true, strings: [String]? = nil) -> AUParameter {
+                           _ unit: AudioUnitParameterUnit, writable: Bool = true, meta: Bool = false, strings: [String]? = nil) -> AUParameter {
         var flags: AudioUnitParameterOptions = [.flag_IsReadable]
         if writable { flags.insert(.flag_IsWritable) }
+        if meta { flags.insert(.flag_IsGlobalMeta) }
         return AUParameterTree.createParameter(withIdentifier: id, name: name, address: a.rawValue,
                                                min: lo, max: hi, unit: unit, unitName: nil,
                                                flags: flags, valueStrings: strings, dependentParameters: nil)
     }
 
     private func buildParameters() {
-        pMode = makeParam("mode", "Mode", .mode, 0, 2, .indexed, strings: ["Bypass", "Capture", "Edited playback"])
-        pSel = makeParam("note", "Selected note", .selected, 0, 999, .generic)
-        pPitch = makeParam("pitchOffset", "Note pitch offset cents", .pitch, -1200, 1200, .cents)
+        pMode = makeParam("mode", "Mode", .mode, 0, 2, .indexed, meta: true, strings: ["Bypass", "Capture", "Edited playback"])
+        pSel = makeParam("note", "Selected note", .selected, 0, 999, .generic, meta: true)
+        pPitch = makeParam("pitchOffset", "Note pitch offset cents", .pitch, -1200, 1200, .cents, meta: true)
         pCount = makeParam("noteCount", "Note count", .count, 0, 999, .generic, writable: false)
         pDet = makeParam("detectedNote", "Detected note number", .detected, 0, 127, .midiNoteNumber, writable: false)
         pCur = makeParam("currentNote", "Current note number", .current, 0, 127, .midiNoteNumber, writable: false)
@@ -105,7 +106,7 @@ final class NoteTuneAudioUnit: AUAudioUnit {
             (.snap, "snap", "Snap note to nearest pitch"), (.reset, "reset", "Reset note"),
             (.next, "nextNote", "Next note"), (.prev, "prevNote", "Previous note")]
         for (a, id, name) in trig {
-            let p = makeParam(id, name, a, 0, 1, .boolean)
+            let p = makeParam(id, name, a, 0, 1, .boolean, meta: a == .audition)
             pTrig[a] = p; all.append(p)
         }
         let tree = AUParameterTree.createTree(withChildren: all)
