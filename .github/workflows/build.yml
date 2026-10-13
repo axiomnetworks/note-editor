@@ -17,6 +17,13 @@ jobs:
           sw_vers 2>&1 | tee build.log
           swift --version 2>&1 | tee -a build.log
           bash NoteTune/build.sh 2>&1 | tee -a build.log
+      - name: Full auval
+        if: always()
+        shell: bash
+        run: |
+          pluginkit -a NoteTune/build/NoteTune.app/Contents/PlugIns/NoteTuneAU.appex || true
+          auval -a 2>&1 | tee auval-list.log || true
+          auval -v aufx ntun OInd > auval.log 2>&1 || true
       - name: Publish
         if: always()
         shell: bash
@@ -24,5 +31,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           FILES="build.log"
+          [ -f auval.log ] && FILES="$FILES auval.log auval-list.log"
           [ -f NoteTune/build/NoteTune-mac.zip ] && FILES="$FILES NoteTune/build/NoteTune-mac.zip"
           gh release create "build-${{ github.run_number }}" $FILES --title "build ${{ github.run_number }}" --notes "auto build"
