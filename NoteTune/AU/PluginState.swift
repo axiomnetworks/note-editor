@@ -8,7 +8,8 @@ import os
 final class PluginState {
     var mode = 0                    // 0 bypass, 1 capture, 2 edited playback
     var sampleRate = 44100.0
-    var transport: AUHostTransportStateBlock?
+    /// Looked up on every render: hosts may set the transport block after allocateRenderResources.
+    var transportProvider: (() -> AUHostTransportStateBlock?)?
 
     private let capacity = 240 * 48000
     private let cap: UnsafeMutablePointer<Float>
@@ -19,9 +20,12 @@ final class PluginState {
 
     private var edited: UnsafeMutablePointer<Float>?
     private var editedCount = 0
-    private var aud: UnsafeMutablePointer<Float>?
-    private var audCount = 0
-    private var audPos = 0
+
+    // diagnostics (written by audio thread under lock)
+    private var renderCalls = 0
+    private var transportSeen = false
+    private var lastPos = -1
+    private var moving = false
 
     private let lock: UnsafeMutablePointer<os_unfair_lock>
 
@@ -31,11 +35,8 @@ final class PluginState {
         lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
         lock.initialize(to: os_unfair_lock())
     }
-    deinit {
-        cap.deallocate(); edited?.deallocate(); aud?.deallocate(); lock.deallocate()
-    }
+    deinit { cap.deallocate(); edited?.deallocate(); lock.deallocate() }
 
-    // MARK: main-thread API
     func resetCapture() {
         os_unfair_lock_lock(lock); defer { os_unfair_lock_unlock(lock) }
         capCount = 0; capStarted = false; seqPos = 0
@@ -57,28 +58,31 @@ final class PluginState {
         p.initialize(from: samples, count: samples.count)
         edited = p; editedCount = samples.count
     }
-    func setAudition(_ samples: [Float]) {
+    /// Short text for the status line so problems are visible without a debugger.
+    func diagnostics() -> String {
         os_unfair_lock_lock(lock); defer { os_unfair_lock_unlock(lock) }
-        aud?.deallocate(); aud = nil; audCount = 0; audPos = 0
-        guard !samples.isEmpty else { return }
-        let p = UnsafeMutablePointer<Float>.allocate(capacity: samples.count)
-        p.initialize(from: samples, count: samples.count)
-        aud = p; audCount = samples.count
+        return "Render calls \(renderCalls). Host transport \(transportSeen ? "available" : "not provided"), \(moving ? "playing" : "stopped"), position \(lastPos). Edited clip \(editedCount > 0 ? "ready" : "not ready"), capture start \(capStarted ? String(capStart) : "none")."
     }
 
     // MARK: audio thread
     func process(_ abl: UnsafeMutablePointer<AudioBufferList>, frames: Int) {
         guard os_unfair_lock_trylock(lock) else { return }
         defer { os_unfair_lock_unlock(lock) }
+        renderCalls += 1
         let list = UnsafeMutableAudioBufferListPointer(abl)
         let nch = list.count
         guard nch > 0 else { return }
 
         var pos = -1
-        if let t = transport {
+        if let t = transportProvider?() {
+            transportSeen = true
             var fl = AUHostTransportStateFlags()
             var p = 0.0
-            if t(&fl, &p, nil, nil), fl.contains(.moving) { pos = Int(p) }
+            if t(&fl, &p, nil, nil) {
+                moving = fl.contains(.moving)
+                lastPos = Int(p)
+                if moving { pos = Int(p) }
+            }
         }
 
         if mode == 1 {
@@ -108,17 +112,6 @@ final class PluginState {
                     }
                 }
             }
-        }
-
-        if let a = aud, audPos < audCount {
-            for i in 0..<frames {
-                let j = audPos + i
-                let v: Float = j < audCount ? a[j] : 0
-                for b in 0..<nch {
-                    if let d = list[b].mData { d.assumingMemoryBound(to: Float.self)[i] = v }
-                }
-            }
-            audPos += frames
         }
     }
 }
