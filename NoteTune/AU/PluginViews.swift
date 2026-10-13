@@ -18,6 +18,11 @@ struct PluginContentView: View {
             Text(controls.status).accessibilityLabel("Status").fixedSize(horizontal: false, vertical: true)
             Text(model.status).accessibilityLabel("Analysis status").fixedSize(horizontal: false, vertical: true)
             HStack {
+                Button("Audition through Logic output") { au.backend.route = 0; model.audition() }
+                Button("Audition through plugin engine") { au.backend.route = 1; model.audition() }
+                Button("Audition through both") { au.backend.route = 2; model.audition() }
+            }
+            HStack {
                 Button("Previous Note") { model.move(-1) }
                 Button("Next Note") { model.move(1) }
                 Button("Play Note") { model.audition() }
