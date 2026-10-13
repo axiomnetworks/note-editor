@@ -47,6 +47,11 @@ final class NoteTuneAudioUnit: AUAudioUnit {
         outArray = AUAudioUnitBusArray(audioUnit: self, busType: .output, busses: [outBus])
         maximumFramesToRender = 4096
         buildParameters()
+        state.transportProvider = { [weak self] in self?.transportStateBlock }
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.controls.status = (self.controls.mode == 1 ? String(format: "Capturing, %.1f seconds recorded. ", self.state.capturedSeconds) : "") + self.state.diagnostics()
+        }
         model.onChange = { [weak self] in self?.modelChanged() }
         DispatchQueue.main.async { self.syncParams() }
     }
@@ -63,11 +68,9 @@ final class NoteTuneAudioUnit: AUAudioUnit {
     override func allocateRenderResources() throws {
         try super.allocateRenderResources()
         state.sampleRate = outBus.format.sampleRate
-        state.transport = transportStateBlock
     }
     override func deallocateRenderResources() {
         super.deallocateRenderResources()
-        state.transport = nil
     }
 
     override var internalRenderBlock: AUInternalRenderBlock {
@@ -203,13 +206,7 @@ final class NoteTuneAudioUnit: AUAudioUnit {
             model.notes = []
             controls.status = "Capturing. Start playback in Logic over the region you want to edit."
             model.announce("Capturing. Start playback.")
-            timer?.invalidate()
-            timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-                guard let self = self else { return }
-                self.controls.status = String(format: "Capturing, %.1f seconds recorded", self.state.capturedSeconds)
-            }
         } else if prev == 1 {
-            timer?.invalidate(); timer = nil
             finishCapture()
         }
         syncParams()
