@@ -50,7 +50,7 @@ final class NoteTuneAudioUnit: AUAudioUnit {
         state.transportProvider = { [weak self] in self?.transportStateBlock }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            self.controls.status = (self.controls.mode == 1 ? String(format: "Capturing, %.1f seconds recorded. ", self.state.capturedSeconds) : "") + self.state.diagnostics()
+            self.controls.status = (self.controls.mode == 1 ? String(format: "Capturing, %.1f seconds recorded. ", self.state.capturedSeconds) : "") + self.state.diagnostics() + " " + self.backend.info
         }
         model.onChange = { [weak self] in self?.modelChanged() }
         DispatchQueue.main.async { self.syncParams() }
