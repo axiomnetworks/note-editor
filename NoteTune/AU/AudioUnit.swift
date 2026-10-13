@@ -106,7 +106,7 @@ final class NoteTuneAudioUnit: AUAudioUnit {
             (.snap, "snap", "Snap note to nearest pitch"), (.reset, "reset", "Reset note"),
             (.next, "nextNote", "Next note"), (.prev, "prevNote", "Previous note")]
         for (a, id, name) in trig {
-            let p = makeParam(id, name, a, 0, 1, .boolean, meta: a == .audition)
+            let p = makeParam(id, name, a, 0, 1, .boolean, meta: true)
             pTrig[a] = p; all.append(p)
         }
         let tree = AUParameterTree.createTree(withChildren: all)
