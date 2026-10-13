@@ -38,6 +38,7 @@ struct NoteTuneApp: App {
 struct ContentView: View {
     @ObservedObject var model: EditorModel
     @Binding var importing: Bool
+    @State private var monitor: Any?
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -49,6 +50,7 @@ struct ContentView: View {
             NoteListView(model: model)
         }
         .padding()
+        .onAppear { if monitor == nil { monitor = EditorKeys.installMonitor(model: model, window: { nil }) } }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.audio]) { result in
             if case .success(let url) = result {
                 let ok = url.startAccessingSecurityScopedResource()
