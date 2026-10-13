@@ -1,0 +1,37 @@
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          sw_vers 2>&1 | tee build.log
+          swift --version 2>&1 | tee -a build.log
+          swift build -c release 2>&1 | tee -a build.log
+      - name: Package
+        shell: bash
+        run: |
+          APP=NoteTune.app
+          mkdir -p $APP/Contents/MacOS
+          cp .build/release/NoteTune $APP/Contents/MacOS/
+          cp Info.plist $APP/Contents/Info.plist
+          codesign --force --deep --sign - $APP
+          ditto -c -k --keepParent $APP NoteTune-mac.zip
+      - name: Publish
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FILES="build.log"
+          [ -f NoteTune-mac.zip ] && FILES="$FILES NoteTune-mac.zip"
+          gh release create "build-${{ github.run_number }}" $FILES --title "build ${{ github.run_number }}" --notes "auto build"
