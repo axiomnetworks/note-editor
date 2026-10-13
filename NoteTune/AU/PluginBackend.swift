@@ -12,6 +12,12 @@ final class PluginBackend: AuditionBackend {
     private var configuredRate = 0.0
     private var gen = 0
     var lastError = ""
+    /// 0 = Logic output only, 1 = plugin engine only, 2 = both
+    var route = 2
+    private var plays = 0
+    var info: String {
+        "Audition route \(["Logic output", "Plugin engine", "Both"][route]). Plays requested \(plays). Engine \(engine.isRunning ? "running" : "not running"). \(lastError)"
+    }
 
     init(state: PluginState) { self.state = state; engine.attach(player) }
 
@@ -34,6 +40,9 @@ final class PluginBackend: AuditionBackend {
     }
 
     private func playSamples(_ x: [Float]) {
+        plays += 1
+        if route != 1 { state.setAudition(x) }
+        if route == 0 { return }
         guard !x.isEmpty, ensureEngine(),
               let fmt = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
               let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(x.count)),
@@ -66,7 +75,7 @@ final class PluginBackend: AuditionBackend {
         playSamples(a + [Float](repeating: 0, count: Int(0.3 * sampleRate)) + b)
     }
 
-    func stop() { gen += 1; player.stop() }
+    func stop() { gen += 1; player.stop(); state.setAudition([]) }
 
     private func withFades(_ x: [Float]) -> [Float] {
         var y = x
